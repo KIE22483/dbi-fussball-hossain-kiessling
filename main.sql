@@ -2,6 +2,14 @@ DROP DATABASE IF EXISTS fussballmarkt;
 CREATE DATABASE IF NOT EXISTS fussballmarkt;
 USE fussballmarkt;
 
+-- Tabelle 11: Log
+CREATE TABLE IF NOT EXISTS Log (
+    LogID INT AUTO_INCREMENT PRIMARY KEY,
+    EventTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    EventType VARCHAR(50),
+    EventDetail TEXT
+);
+
 -- Tabelle 4: Trainer
 CREATE TABLE IF NOT EXISTS Trainer (
     TrainerID INT AUTO_INCREMENT PRIMARY KEY,
