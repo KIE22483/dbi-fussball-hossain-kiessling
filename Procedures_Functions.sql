@@ -1,162 +1,144 @@
--- Search function
 USE fussballmarkt;
 
-DELIMITER / / CREATE FUNCTION SearchPlayer(last_name VARCHAR(50)) RETURNS VARCHAR(255) READS SQL DATA BEGIN DECLARE player_info VARCHAR(255);
+DELIMITER //
 
-SELECT
-    CONCAT(
-        'Player found: ',
-        Vorname,
-        ' ',
-        Nachname,
-        ', Position: ',
-        Position,
-        ', Geburtsdatum: ',
-        Geburtsdatum
-    ) INTO player_info
-FROM
-    Spieler
-WHERE
-    Nachname = last_name;
+DROP FUNCTION IF EXISTS SearchPlayer;
+CREATE FUNCTION SearchPlayer(last_name VARCHAR(50))
+RETURNS VARCHAR(255)
+READS SQL DATA
+BEGIN
+    DECLARE player_info VARCHAR(255);
+    
+    SELECT CONCAT('Player found: ', Vorname, ' ', Nachname, ', Position: ', Position, ', Geburtsdatum: ', Geburtsdatum)
+    INTO player_info
+    FROM Spieler
+    WHERE Nachname = last_name;
+    
+    IF player_info IS NULL THEN
+        RETURN 'Player not found';
+    ELSE
+        RETURN player_info;
+    END IF;
+END //
 
-IF player_info IS NULL THEN RETURN 'Player not found';
+DELIMITER ;
 
-ELSE RETURN player_info;
+SELECT SearchPlayer('Ronaldo');
 
-END IF;
 
-END / / DELIMITER;
+DROP PROCEDURE IF EXISTS AddPlayer;
+DELIMITER //
 
-SELECT
-    SearchPlayer('Ronaldo');
+CREATE PROCEDURE AddPlayer(
+    IN first_name VARCHAR(50),
+    IN last_name VARCHAR(50),
+    IN position VARCHAR(50),
+    IN birth_date DATE,
+    IN nationality VARCHAR(50),
+    IN market_value DECIMAL(18, 2),
+    IN club_id INT
+)
+BEGIN
+    DECLARE player_count INT;
+    
+    SELECT COUNT(*)
+    INTO player_count
+    FROM Spieler
+    WHERE Vorname = first_name AND Nachname = last_name AND VereinsID = club_id;
+    
+    -- If player doesn't exist, insert new player
+    IF player_count = 0 THEN
+        INSERT INTO Spieler (Vorname, Nachname, Position, Geburtsdatum, Nationalität, Marktwert, VereinsID)
+        VALUES (first_name, last_name, position, birth_date, nationality, market_value, club_id);
+        SELECT 'Player added successfully';
+    ELSE
+        SELECT 'Player already exists';
+    END IF;
+END //
 
--- Ermittlung des Gesamtmarktwerts eines Vereins
-SELECT
-    Vereine.Name AS Vereinsname,
-    SUM(Spieler.Marktwert) AS Gesamtmarktwert
-FROM
-    Vereine
-    JOIN Spieler ON Vereine.VereinsID = Spieler.VereinsID
-GROUP BY
-    Vereine.Name;
+DELIMITER ;
 
---  Top-Scorer pro Turnier
-SELECT
-    Turniere.Name AS Turnier,
-    Spieler.Vorname,
-    Spieler.Nachname,
-    COUNT(Tore.TorID) AS Tore
-FROM
-    Turniere
-    JOIN Turnierteams ON Turniere.TurnierID = Turnierteams.TurnierID
-    JOIN Spiele ON Turnierteams.VereinsID IN (Spiele.HeimVereinID, Spiele.AuswaertsVereinID)
-    JOIN Tore ON Spiele.SpielID = Tore.SpielID
-    JOIN Spieler ON Tore.SpielerID = Spieler.SpielerID
-WHERE
-    Turniere.TurnierID = 1 -- ID des Turniers
-GROUP BY
-    Turniere.Name,
-    Spieler.Vorname,
-    Spieler.Nachname
-ORDER BY
-    Tore DESC
-LIMIT
-    3;
+-- CALL AddPlayer('SIUUU', 'Mbappé', 'Forward', '1998-12-20', 'French', 150000000.00, 2);
 
--- Auswertung der Transferaktivitäten eines Vereins
-SELECT
-    Verein.Name,
-    SUM(
-        CASE
-            WHEN Transfers.VonVereinID = Verein.VereinsID THEN Transfers.Transfergebuehr
-            ELSE 0
-        END
-    ) AS Summe_Ausgehende_Transfers,
-    SUM(
-        CASE
-            WHEN Transfers.NachVereinID = Verein.VereinsID THEN Transfers.Transfergebuehr
-            ELSE 0
-        END
-    ) AS Summe_Eingehende_Transfers
-FROM
-    Vereine AS Verein
-    LEFT JOIN Transfers ON Verein.VereinsID IN (Transfers.VonVereinID, Transfers.NachVereinID)
-GROUP BY
-    Verein.Name;
+SELECT * FROM Spieler;
 
--- Spieler mit den meisten Verletzungen
-SELECT
-    Spieler.Vorname,
-    Spieler.Nachname,
-    COUNT(Verletzungen.VerletzungsID) AS Anzahl_Verletzungen
-FROM
-    Spieler
-    JOIN Verletzungen ON Spieler.SpielerID = Verletzungen.SpielerID
-GROUP BY
-    Spieler.Vorname,
-    Spieler.Nachname
-ORDER BY
-    Anzahl_Verletzungen DESC
-LIMIT
-    1;
+DELIMITER //
 
--- Trigger zur Überprüfung der Spielerdaten
-DELIMITER / / CREATE TRIGGER CheckMarktwert BEFORE
-UPDATE
-    ON Spieler FOR EACH ROW BEGIN IF NEW.Marktwert < 0 THEN SIGNAL SQLSTATE '45000'
-SET
-    MESSAGE_TEXT = 'Marktwert darf nicht negativ sein';
+DELIMITER //
 
-END IF;
+DROP PROCEDURE IF EXISTS DeletePlayer;
 
-END / / DELIMITER;
+CREATE PROCEDURE DeletePlayer(
+    IN player_id INT
+)
+BEGIN
+    DECLARE player_count INT;
+    
+    SELECT COUNT(*)
+    INTO player_count
+    FROM Spieler
+    WHERE SpielerID = player_id;
+    
+    -- If player exists, delete the player
+    IF player_count > 0 THEN
+        DELETE FROM Spieler
+        WHERE SpielerID = player_id;
+        SELECT 'Player deleted successfully';
+    ELSE
+        SELECT 'Player not found';
+    END IF;
+END //
 
--- Erstellung eines Cursors zur Iteration über Spielerdaten     
--- Erstellt ein Beispiel mit einem Cursor, der durch alle Spieler iteriert und deren Marktwert um 10% erhöht, wenn sie in den letzten 6 Monaten kein Tor erzielt haben.
-DELIMITER / / CREATE PROCEDURE UpdateMarktwertNoGoals() BEGIN DECLARE done INT DEFAULT 0;
+DELIMITER ;
 
-DECLARE pSpielerID INT;
+-- CALL DeletePlayer(7);
 
-DECLARE SpielerCursor CURSOR FOR
-SELECT
-    SpielerID
-FROM
-    Spieler;
+SELECT * From Spieler;
 
-DECLARE CONTINUE HANDLER FOR NOT FOUND
-SET
-    done = 1;
+DELIMITER //
 
-OPEN SpielerCursor;
+DROP PROCEDURE IF EXISTS EditPlayer;
 
-read_loop: LOOP FETCH SpielerCursor INTO pSpielerID;
+CREATE PROCEDURE EditPlayer(
+    IN player_id INT,
+    IN new_first_name VARCHAR(50),
+    IN new_last_name VARCHAR(50),
+    IN new_position VARCHAR(50),
+    IN new_birth_date DATE,
+    IN new_nationality VARCHAR(50),
+    IN new_market_value DECIMAL(18, 2),
+    IN new_club_id INT
+)
+BEGIN
+    DECLARE player_count INT;
+    
+    -- Check if the player exists
+    SELECT COUNT(*)
+    INTO player_count
+    FROM Spieler
+    WHERE SpielerID = player_id;
+    
+    -- If player exists, update the player details
+    IF player_count > 0 THEN
+        UPDATE Spieler
+        SET Vorname = new_first_name,
+            Nachname = new_last_name,
+            Position = new_position,
+            Geburtsdatum = new_birth_date,
+            Nationalität = new_nationality,
+            Marktwert = new_market_value,
+            VereinsID = new_club_id
+        WHERE SpielerID = player_id;
+        SELECT 'Player updated successfully';
+    ELSE
+        SELECT 'Player not found';
+    END IF;
+END //
 
-IF done THEN LEAVE read_loop;
+DELIMITER ;
 
-END IF;
+-- Example usage
+CALL EditPlayer(1, 'Spieler', 'Eins', 'Wird zu diesem hier', '1998-12-20', 'French', 160000000.00, 2);
 
--- Erhöhung des Marktwerts um 10%, wenn der Spieler in den letzten 6 Monaten kein Tor erzielt hat
-IF NOT EXISTS (
-    SELECT
-        1
-    FROM
-        Tore
-        JOIN Spiele ON Tore.SpielID = Spiele.SpielID
-    WHERE
-        Tore.SpielerID = pSpielerID
-        AND Spiele.SpielDatum > DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-) THEN
-UPDATE
-    Spieler
-SET
-    Marktwert = Marktwert * 1.10
-WHERE
-    SpielerID = pSpielerID;
+SELECT * FROM Spieler;
 
-END IF;
-
-END LOOP;
-
-CLOSE SpielerCursor;
-
-END / / DELIMITER;
